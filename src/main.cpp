@@ -153,7 +153,7 @@ int main() {
 
 		  vector<double> control = mpc.Solve(state, coeffs);
 
-		  // Adujust with -1.0 as mentioned in the Tips Section
+		
 		  steer_value = control[0] / (deg2rad(25)*Lf);
 		  throttle_value = control[1];
 		  cout << "Steer Value: " << steer_value << "\n";
