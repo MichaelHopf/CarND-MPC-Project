@@ -1,6 +1,8 @@
 
 # Model predictive Control
 
+(See IPython notebook "README.ipynb" for complete version!)
+
 In this project, I implemented an MPC-Controller to steer a car on a track in a simulator. I had to implement the controller as well as tune many parameters.
 
 My submission includes the following files:
