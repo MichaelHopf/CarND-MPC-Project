@@ -22,7 +22,7 @@ In this project, we have two __actuators__, the steering angle and the throttle.
 Similiar to the lecture, the __state__ is described by x-coordinates, y-cooridnates, the orientation $\psi$, the velocity v, the cross track error cte, and the orientation error $e\psi$. So, the state is 6-dimensional.
 
 The __update equations__ are as follows:
-![alt text](./updateequations2.PNG "Update equations")
+![alt text](./updateequations2.png "Update equations")
 
 However, these update equations are in global coordinates. We have to transform them into vehicle coordinates where the car just moves along the x-direction. Thus, the update for the y-coordinate will be 0. Also the initial steering angle in car coordinates is 0.
 
