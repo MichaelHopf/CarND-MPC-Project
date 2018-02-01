@@ -20,6 +20,7 @@ double rad2deg(double x) { return x * 180 / pi(); }
 // Checks if the SocketIO event has JSON data.
 // If there is data the JSON object in string format will be returned,
 // else the empty string "" will be returned.
+
 string hasData(string s) {
   auto found_null = s.find("null");
   auto b1 = s.find_first_of("[");
@@ -40,6 +41,15 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   }
   return result;
 }
+// Evaluate its Differential
+double polyeval_D(Eigen::VectorXd coeffs, double x) {
+	double result = 0.0;
+	for (int i = 1; i < coeffs.size(); i++) {
+		result += i * coeffs[i] * pow(x, i-1);
+	}
+	return result;
+}
+
 
 // Fit a polynomial.
 // Adapted from
@@ -69,7 +79,9 @@ int main() {
   uWS::Hub h;
 
   // MPC is initialized here!
+
   MPC mpc;
+ 
 
   h.onMessage([&mpc](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length,
                      uWS::OpCode opCode) {
@@ -78,8 +90,10 @@ int main() {
     // The 2 signifies a websocket event
     string sdata = string(data).substr(0, length);
     cout << sdata << endl;
+
     if (sdata.size() > 2 && sdata[0] == '4' && sdata[1] == '2') {
       string s = hasData(sdata);
+
       if (s != "") {
         auto j = json::parse(s);
         string event = j[0].get<string>();
@@ -91,6 +105,41 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+		  double delta = j[1]["steering_angle"];
+		  double a = j[1]["throttle"];
+
+
+		  // Transform global coordinates into vehicle coordinates
+		  int vec_len = ptsx.size();
+
+		  Eigen::VectorXd Vptsx(vec_len);
+		  Eigen::VectorXd Vptsy(vec_len);
+	
+		  for (int i = 0; i < vec_len; i++) {
+			  double dx = ptsx[i] - px;
+			  double dy = ptsy[i] - py;
+			  Vptsx[i] = dx*cos(psi) + dy*sin(psi);
+			  Vptsy[i] = dy*cos(psi) - dx*sin(psi);
+		  }
+
+		  //Calculate coeffs
+		  Eigen::VectorXd coeffs = polyfit(Vptsx, Vptsy, 3);
+
+		  // cte and epsi
+		  double cte = polyeval(coeffs, 0);
+		  double epsi = - atan(polyeval_D(coeffs,0));
+
+		  // latency
+		  const double latency = 0.1;
+		  const double Lf = 2.67;
+
+		  Eigen::VectorXd state(6);
+		  state << v * latency,
+			  0,
+			  - v/Lf * delta * latency,
+			  v + a * latency,
+			  cte + v * sin(epsi) *latency,
+			  epsi - v/Lf *delta * latency;
 
           /*
           * TODO: Calculate steering angle and throttle using MPC.
@@ -98,8 +147,18 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
+
           double steer_value;
           double throttle_value;
+
+		  vector<double> control = mpc.Solve(state, coeffs);
+
+		  // Adujust with -1.0 as mentioned in the Tips Section
+		  steer_value = control[0] / (deg2rad(25)*Lf);
+		  throttle_value = control[1];
+		  cout << "Steer Value: " << steer_value << "\n";
+		  cout << "Throttle Value: " << throttle_value << "\n";
+		  cout << "\n";
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -113,6 +172,15 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+		  for (unsigned int i = 2; i < control.size(); i++) {
+			  if (i % 2 == 0) {
+				  mpc_x_vals.push_back(control[i]);
+			  }
+			  else {
+				  mpc_y_vals.push_back(control[i]);
+			  }
+		  }
+
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
@@ -123,11 +191,17 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+		  double num_pts = 20;
+		  for (int i = 0; i < num_pts; i+=3) {
+			  next_x_vals.push_back(i);
+			  next_y_vals.push_back(polyeval(coeffs, i));
+		  }
+
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
 
-
+		
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
           // Latency
